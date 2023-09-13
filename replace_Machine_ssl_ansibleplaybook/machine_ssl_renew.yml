@@ -1,0 +1,51 @@
+---
+- hosts: localhost
+
+  tasks:
+  - name: Including Secret environment itsems
+    include_vars:
+      file: vcsecrets.yml
+      name: secret
+
+  - name: vcenter login
+    uri:
+      url: "https://{{secret.vcenter}}/rest/com/vmware/cis/session"
+      force_basic_auth: yes
+      method: POST
+      user: "{{secret.username}}"
+      password: "{{secret.password}}"
+      status_code: 200
+      validate_certs: no
+    register: login
+
+  - name: Obtain CIS Session ID
+    uri:
+      url: "https://{{ secret.vcenter }}/rest/com/vmware/cis/session"
+      method: POST
+      headers:
+       Content-Type: application/json
+      body_format: json
+      body: "{}"  # An empty JSON object
+      validate_certs: no
+      force_basic_auth: yes
+      user: "{{ secret.username }}"
+      password: "{{ secret.password }}"
+    register: session_response
+
+  - name: Extract Session ID
+    set_fact:
+        session_id: "{{ session_response.json.value }}"
+        status_code: 200
+
+  - name: replace machine ssl
+    uri:
+      url: "https://{{secret.vcenter}}/rest/vcenter/certificate-management/vcenter/tls?action=renew"
+      force_basic_auth: yes
+      method: POST
+      headers:
+        vmware-api-session-id: "{{ session_id }}"
+      body_format: json
+      body: '{"duration": 730}'  # Set the desired duration here
+      status_code: 200
+      validate_certs: no
+    register: replaced_ssl
